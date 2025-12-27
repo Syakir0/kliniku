@@ -1,16 +1,16 @@
 # kliniku
+# Kliniku
 
-A new Flutter project.
+Aplikasi klinik berbasis Flutter dan Firebase.
 
-## Getting Started
+## Fitur
+- Login multi-role (Admin, Dokter, Pasien)
+- Register pasien
+- Lupa password
+- Firebase Authentication
+- Cloud Firestore
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Teknologi
+- Flutter
+- Firebase Authentication
+- Cloud Firestore

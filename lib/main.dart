@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
+// PAGES
 import 'pages/login_page.dart';
-import 'pages/admin_page.dart';
-import 'pages/dokter_page.dart';
-import 'pages/pasien_page.dart';
+import 'pages/admin/admin_page.dart';
+import 'pages/dokter/dokter_page.dart';
+import 'pages/pasien/pasien_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,12 +14,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -30,10 +29,10 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginPage(),
-        '/admin': (context) => const AdminPage(),
-        '/dokter': (context) => const DokterPage(),
-        '/pasien': (context) => const PasienPage(),
+        '/': (context) => LoginPage(),
+        '/admin': (context) => AdminPage(), // ❗ TANPA const
+        '/dokter': (context) => DokterPage(),
+        '/pasien': (context) => PasienPage(),
       },
     );
   }
