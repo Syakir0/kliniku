@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
 // PAGES
-import 'pages/login_page.dart';
+import 'pages/login/login_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/dokter/dokter_page.dart';
 import 'pages/pasien/pasien_page.dart';

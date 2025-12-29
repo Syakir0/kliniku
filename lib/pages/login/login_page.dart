@@ -1,37 +1,39 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../../services/auth_service.dart';
+import 'register_page.dart';
+import 'forgot_password_page.dart';
 
-class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final AuthService authService = AuthService();
-  final confirmPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
 
-  bool isConfirmVisible = false;
   bool isLoading = false;
   bool isPasswordVisible = false;
 
-  void handleRegister() async {
+  void handleLogin() async {
     setState(() => isLoading = true);
 
     try {
-      await authService.registerPasien(
+      String role = await _authService.login(
         emailController.text.trim(),
         passwordController.text.trim(),
       );
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Akun berhasil dibuat')));
-
-      Navigator.pop(context); // balik ke login
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else if (role == 'dokter') {
+        Navigator.pushReplacementNamed(context, '/dokter');
+      } else {
+        Navigator.pushReplacementNamed(context, '/pasien');
+      }
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -44,7 +46,7 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register Pasien')),
+      appBar: AppBar(title: const Text('Login Kliniku')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -71,28 +73,29 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
             ),
-            TextField(
-              controller: confirmPasswordController,
-              obscureText: !isConfirmVisible,
-              decoration: InputDecoration(
-                labelText: 'Konfirmasi Password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    isConfirmVisible ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      isConfirmVisible = !isConfirmVisible;
-                    });
-                  },
-                ),
-              ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterPage()),
+                );
+              },
+              child: const Text('Belum punya akun? Daftar'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+                );
+              },
+              child: const Text('Lupa Password?'),
             ),
 
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: isLoading ? null : handleRegister,
-              child: Text(isLoading ? 'Loading...' : 'Daftar'),
+              onPressed: isLoading ? null : handleLogin,
+              child: Text(isLoading ? 'Loading...' : 'Login'),
             ),
           ],
         ),
