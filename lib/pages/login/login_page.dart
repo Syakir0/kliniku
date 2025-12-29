@@ -18,29 +18,33 @@ class _LoginPageState extends State<LoginPage> {
   bool isLoading = false;
   bool isPasswordVisible = false;
 
-  void handleLogin() async {
+  Future<void> handleLogin() async {
     setState(() => isLoading = true);
 
     try {
-      String role = await _authService.login(
+      final role = await _authService.login(
         emailController.text.trim(),
         passwordController.text.trim(),
       );
 
-      if (role == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin');
-      } else if (role == 'dokter') {
-        Navigator.pushReplacementNamed(context, '/dokter');
-      } else {
-        Navigator.pushReplacementNamed(context, '/pasien');
+      switch (role) {
+        case 'admin':
+          Navigator.pushReplacementNamed(context, '/admin');
+          break;
+        case 'dokter':
+          Navigator.pushReplacementNamed(context, '/dokter');
+          break;
+        case 'pasien':
+          Navigator.pushReplacementNamed(context, '/pasien');
+          break;
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception:', '').trim())),
+      );
+    } finally {
+      setState(() => isLoading = false);
     }
-
-    setState(() => isLoading = false);
   }
 
   @override
@@ -63,7 +67,9 @@ class _LoginPageState extends State<LoginPage> {
                 labelText: 'Password',
                 suffixIcon: IconButton(
                   icon: Icon(
-                    isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                    isPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
                   ),
                   onPressed: () {
                     setState(() {
@@ -73,6 +79,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ),
+
             TextButton(
               onPressed: () {
                 Navigator.push(
@@ -82,11 +89,14 @@ class _LoginPageState extends State<LoginPage> {
               },
               child: const Text('Belum punya akun? Daftar'),
             ),
+
             TextButton(
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+                  MaterialPageRoute(
+                    builder: (_) => const ForgotPasswordPage(),
+                  ),
                 );
               },
               child: const Text('Lupa Password?'),

@@ -7,8 +7,8 @@ class AntrianPasienPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String uid = FirebaseAuth.instance.currentUser!.uid;
-    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final firestore = FirebaseFirestore.instance;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Antrian Saya')),
@@ -16,73 +16,110 @@ class AntrianPasienPage extends StatelessWidget {
         stream: firestore
             .collection('janji')
             .where('id_pasien', isEqualTo: uid)
+            .orderBy('tanggal', descending: true)
             .snapshots(),
-        builder: (context, janjiSnapshot) {
-          if (!janjiSnapshot.hasData) {
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (janjiSnapshot.data!.docs.isEmpty) {
+          if (snapshot.data!.docs.isEmpty) {
             return const Center(child: Text('Belum ada antrian'));
           }
 
           return ListView(
-            children: janjiSnapshot.data!.docs.map((janjiDoc) {
-              final janjiData = janjiDoc.data() as Map<String, dynamic>;
+            children: snapshot.data!.docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final status = data['status'];
 
-              return StreamBuilder<QuerySnapshot>(
-                stream: firestore
-                    .collection('antrian')
-                    .where('id_janji', isEqualTo: janjiDoc.id)
-                    .snapshots(),
-                builder: (context, antrianSnapshot) {
-                  if (!antrianSnapshot.hasData) {
-                    return const SizedBox();
-                  }
+              Color statusColor;
+              IconData statusIcon;
+              String statusText;
 
-                  if (antrianSnapshot.data!.docs.isEmpty) {
-                    return const SizedBox();
-                  }
+              switch (status) {
+                case 'batal':
+                  statusColor = Colors.red;
+                  statusIcon = Icons.cancel;
+                  statusText = 'Dibatalkan';
+                  break;
+                case 'selesai':
+                  statusColor = Colors.green;
+                  statusIcon = Icons.check_circle;
+                  statusText = 'Selesai';
+                  break;
+                default:
+                  statusColor = Colors.orange;
+                  statusIcon = Icons.access_time;
+                  statusText = 'Menunggu';
+              }
 
-                  final antrianDoc = antrianSnapshot.data!.docs.first;
-                  final antrianData = antrianDoc.data() as Map<String, dynamic>;
-
-                  return FutureBuilder<DocumentSnapshot>(
-                    future: firestore
-                        .collection('dokter')
-                        .doc(janjiData['id_dokter'])
-                        .get(),
-                    builder: (context, dokterSnapshot) {
-                      if (!dokterSnapshot.hasData) {
-                        return const SizedBox();
-                      }
-
-                      final dokterData =
-                          dokterSnapshot.data!.data() as Map<String, dynamic>;
-
-                      return Card(
-                        margin: const EdgeInsets.all(8),
-                        child: ListTile(
-                          title: Text(
-                            'Dokter: ${dokterData['nama']}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Nomor Antrian: ${antrianData['nomor']}'),
-                              Text('Status: ${antrianData['status']}'),
-                              Text(
-                                'Tanggal: ${(antrianData['tanggal'] as Timestamp).toDate().toString().split(' ')[0]}',
-                              ),
-                            ],
-                          ),
+              return Card(
+                margin: const EdgeInsets.all(8),
+                child: ListTile(
+                  leading: Icon(statusIcon, color: statusColor),
+                  title: Text(
+                    'Dr. ${data['nama_dokter']}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Poli: ${data['poli']}'),
+                      Text('Nomor Antrian: ${data['nomer_antrian']}'),
+                      Text(
+                        'Tanggal: ${(data['tanggal'] as Timestamp).toDate().toString().split(' ')[0]}',
+                      ),
+                      Text(
+                        'Status: $statusText',
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
                         ),
-                      );
-                    },
-                  );
-                },
+                      ),
+                    ],
+                  ),
+
+                  // ===== TOMBOL BATAL =====
+                  trailing: status == 'menunggu'
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Batalkan Janji'),
+                                content: const Text(
+                                  'Apakah Anda yakin ingin membatalkan janji ini?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Tidak'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    onPressed: () async {
+                                      await firestore
+                                          .collection('janji')
+                                          .doc(doc.id)
+                                          .update({
+                                            'status': 'batal',
+                                            'update_at': Timestamp.now(),
+                                          });
+
+                                      Navigator.pop(context);
+                                    },
+                                    child: const Text('Ya, Batalkan'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        )
+                      : null,
+                ),
               );
             }).toList(),
           );

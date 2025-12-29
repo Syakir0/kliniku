@@ -11,129 +11,256 @@ class BuatJanjiPage extends StatefulWidget {
 
 class _BuatJanjiPageState extends State<BuatJanjiPage> {
   String? selectedDokterId;
-  DateTime? selectedDate;
+  String? selectedHari;
+  DateTime? selectedTanggal;
+  Map<String, dynamic>? dokterData;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool isLoading = false;
+
+  final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+
+  // ===== INPUT PASIEN =====
+  final namaController = TextEditingController();
+  final noHpController = TextEditingController();
+  final keteranganController = TextEditingController();
+
+  // ===== JAM PRAKTEK PERMANEN =====
+  final String jamMulai = '08:00';
+  final String jamSelesai = '12:00';
+
+  // ================= KONVERSI HARI =================
+  int hariKeInt(String hari) {
+    switch (hari) {
+      case 'Senin':
+        return DateTime.monday;
+      case 'Selasa':
+        return DateTime.tuesday;
+      case 'Rabu':
+        return DateTime.wednesday;
+      case 'Kamis':
+        return DateTime.thursday;
+      case 'Jumat':
+        return DateTime.friday;
+      default:
+        return 0;
+    }
+  }
 
   // ================= PILIH TANGGAL =================
   Future<void> pilihTanggal() async {
+    if (selectedHari == null) return;
+
+    final targetHari = hariKeInt(selectedHari!);
+
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 30)),
+      selectableDayPredicate: (date) => date.weekday == targetHari,
     );
 
     if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-      });
+      setState(() => selectedTanggal = picked);
     }
   }
 
   // ================= SIMPAN JANJI =================
   Future<void> simpanJanji() async {
-    if (selectedDokterId == null || selectedDate == null) return;
+    if (selectedDokterId == null ||
+        selectedHari == null ||
+        selectedTanggal == null ||
+        namaController.text.isEmpty ||
+        noHpController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lengkapi semua data')),
+      );
+      return;
+    }
 
-    final user = _auth.currentUser;
-    if (user == null) return;
+    setState(() => isLoading = true);
 
-    // 1. Simpan janji
-    final janjiRef = await _firestore.collection('janji').add({
-      'id_pasien': user.uid,
-      'id_dokter': selectedDokterId,
-      'tanggal': Timestamp.fromDate(selectedDate!),
-      'status': 'menunggu',
-      'created_at': Timestamp.now(),
-    });
+    try {
+      final uid = _auth.currentUser!.uid;
 
-    // 2. Hitung nomor antrian
-    final antrianSnapshot = await _firestore
-        .collection('antrian')
-        .where('id_dokter', isEqualTo: selectedDokterId)
-        .where('tanggal', isEqualTo: Timestamp.fromDate(selectedDate!))
-        .get();
+      final tanggalFix = DateTime(
+        selectedTanggal!.year,
+        selectedTanggal!.month,
+        selectedTanggal!.day,
+      );
 
-    final nomorAntrian = antrianSnapshot.docs.length + 1;
+      // ===== HITUNG NOMOR ANTRIAN =====
+      final antrianSnapshot = await _firestore
+          .collection('janji')
+          .where('id_dokter', isEqualTo: selectedDokterId)
+          .where('tanggal', isEqualTo: Timestamp.fromDate(tanggalFix))
+          .get();
 
-    // 3. Simpan antrian
-    await _firestore.collection('antrian').add({
-      'id_janji': janjiRef.id,
-      'id_dokter': selectedDokterId,
-      'nomor': nomorAntrian,
-      'tanggal': Timestamp.fromDate(selectedDate!),
-      'status': 'menunggu',
-      'created_at': Timestamp.now(),
-    });
+      final int nomorAntrian = antrianSnapshot.docs.length + 1;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Janji berhasil dibuat')));
+      // ===== SIMPAN JANJI =====
+      await _firestore.collection('janji').add({
+        'id_pasien': uid,
+        'id_dokter': selectedDokterId,
 
-    Navigator.pop(context);
+        'nama_pasien': namaController.text.trim(),
+        'no_hp_pasien': noHpController.text.trim(),
+
+        'nama_dokter': dokterData!['nama'],
+        'poli': dokterData!['poli'],
+        'spesialis': dokterData!['spesialis'],
+
+        'hari_praktek': selectedHari,
+        'tanggal': Timestamp.fromDate(tanggalFix),
+
+        // JAM PERMANEN
+        'jam_mulai': jamMulai,
+        'jam_selesai': jamSelesai,
+
+        'keterangan': keteranganController.text.trim(),
+        'status': 'menunggu',
+        'nomer_antrian': nomorAntrian, // INTEGER
+
+        'created_at': Timestamp.now(),
+        'update_at': Timestamp.now(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Janji berhasil dibuat')),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Buat Janji')),
-      body: Padding(
+      appBar: AppBar(title: const Text('Buat Janji Dokter')),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Pilih Dokter',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            // ===== NAMA PASIEN =====
+            TextField(
+              controller: namaController,
+              decoration: const InputDecoration(labelText: 'Nama Lengkap'),
             ),
-            const SizedBox(height: 8),
 
-            // ===== DROPDOWN DOKTER =====
+            const SizedBox(height: 12),
+
+            // ===== NO HP =====
+            TextField(
+              controller: noHpController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Nomor HP'),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ===== PILIH DOKTER =====
             StreamBuilder<QuerySnapshot>(
-              stream: _firestore.collection('dokter').snapshots(),
+              stream: _firestore
+                  .collection('users')
+                  .where('role', isEqualTo: 'dokter')
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const CircularProgressIndicator();
                 }
 
                 return DropdownButtonFormField<String>(
-                  value: selectedDokterId,
-                  hint: const Text('Pilih Dokter'),
+                  decoration: const InputDecoration(labelText: 'Pilih Dokter'),
+                  value: snapshot.data!.docs.any((d) => d.id == selectedDokterId)
+                      ? selectedDokterId
+                      : null,
                   items: snapshot.data!.docs.map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return DropdownMenuItem<String>(
+                    return DropdownMenuItem(
                       value: doc.id,
-                      child: Text(data['nama']),
+                      child: Text(doc['nama']),
                     );
                   }).toList(),
-                  onChanged: (value) {
+                  onChanged: (v) {
                     setState(() {
-                      selectedDokterId = value;
+                      selectedDokterId = v;
+                      dokterData = snapshot.data!.docs
+                          .firstWhere((d) => d.id == v)
+                          .data() as Map<String, dynamic>;
+                      selectedHari = null;
+                      selectedTanggal = null;
                     });
                   },
                 );
               },
             ),
 
-            const SizedBox(height: 20),
+            if (dokterData != null) ...[
+              const SizedBox(height: 12),
 
-            // ===== PILIH TANGGAL =====
-            ElevatedButton(
-              onPressed: pilihTanggal,
-              child: Text(
-                selectedDate == null
-                    ? 'Pilih Tanggal'
-                    : selectedDate!.toLocal().toString().split(' ')[0],
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Poli: ${dokterData!['poli']}'),
+                      Text('Jam Praktek: $jamMulai - $jamSelesai'),
+                    ],
+                  ),
+                ),
               ),
+
+              const SizedBox(height: 12),
+
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Hari Praktek'),
+                items: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
+                    .map((h) =>
+                        DropdownMenuItem(value: h, child: Text(h)))
+                    .toList(),
+                onChanged: (v) => setState(() {
+                  selectedHari = v;
+                  selectedTanggal = null;
+                }),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+
+            ListTile(
+              title: Text(
+                selectedTanggal == null
+                    ? 'Pilih Tanggal'
+                    : selectedTanggal!.toString().split(' ')[0],
+              ),
+              trailing: const Icon(Icons.date_range),
+              onTap: selectedHari == null ? null : pilihTanggal,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 12),
+
+            // ===== KELUHAN =====
+            TextField(
+              controller: keteranganController,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Keluhan'),
+            ),
+
+            const SizedBox(height: 20),
 
             ElevatedButton(
-              onPressed: simpanJanji,
-              child: const Text('Simpan Janji'),
+              onPressed: isLoading ? null : simpanJanji,
+              child: isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Simpan Janji'),
             ),
           ],
         ),

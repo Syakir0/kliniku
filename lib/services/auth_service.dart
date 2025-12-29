@@ -5,47 +5,30 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // ================= LOGIN =================
   Future<String> login(String email, String password) async {
-    UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+    final cred = await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
 
-    String uid = userCredential.user!.uid;
+    final uid = cred.user!.uid;
 
-    DocumentSnapshot userDoc = await _firestore
-        .collection('users')
-        .doc(uid)
-        .get();
+    final snap = await _firestore.collection('users').doc(uid).get();
 
-    if (!userDoc.exists) {
-      throw Exception('Role user tidak ditemukan');
+    if (!snap.exists) {
+      throw Exception('Data user tidak ditemukan');
     }
 
-    return userDoc['role'];
+    return snap['role'];
   }
 
+  // ================= LOGOUT =================
   Future<void> logout() async {
     await _auth.signOut();
   }
 
-  Future<void> registerPasien(String email, String password) async {
-    // 1. Buat akun di Firebase Auth
-    UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    String uid = userCredential.user!.uid;
-
-    // 2. Simpan data user ke Firestore
-    await _firestore.collection('users').doc(uid).set({
-      'email': email,
-      'role': 'pasien',
-      'createdAt': Timestamp.now(),
-    });
-  }
-
+  // ================= RESET PASSWORD =================
   Future<void> resetPassword(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
   }
