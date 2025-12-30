@@ -23,7 +23,10 @@ class _PemeriksaanPageState extends State<PemeriksaanPage> {
   final catatanController = TextEditingController();
 
   bool isLoading = false;
-  String? pemeriksaanId; // 🔑 INI KUNCI UTAMA
+  String? pemeriksaanId;
+
+  String namaPasien = '';
+  String namaDokter = '';
 
   @override
   void dispose() {
@@ -32,111 +35,165 @@ class _PemeriksaanPageState extends State<PemeriksaanPage> {
     super.dispose();
   }
 
+  // ================= SIMPAN PEMERIKSAAN =================
   Future<void> simpanPemeriksaan() async {
-    if (diagnosaController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Diagnosa wajib diisi')),
-      );
+    if (diagnosaController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Diagnosa wajib diisi')));
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      final ref =
-          await FirebaseFirestore.instance.collection('pemeriksaan').add({
-        'id_pasien': widget.idPasien,
-        'id_dokter': widget.idDokter,
-        'id_janji': widget.idJanji,
-        'diagnosa': diagnosaController.text,
-        'catatan': catatanController.text,
-        'tanggal': Timestamp.now(),
-        'created_at': Timestamp.now(),
-      });
+      // Simpan pemeriksaan
+      final ref = await FirebaseFirestore.instance
+          .collection('pemeriksaan')
+          .add({
+            'id_pasien': widget.idPasien,
+            'id_dokter': widget.idDokter,
+            'id_janji': widget.idJanji,
+            'diagnosa': diagnosaController.text,
+            'catatan': catatanController.text,
+            'status_pemeriksaan': 'selesai',
+            'tanggal': Timestamp.now(),
+            'created_at': Timestamp.now(),
+          });
 
       pemeriksaanId = ref.id;
 
-      // update status antrian
-      final antrianQuery = await FirebaseFirestore.instance
-          .collection('antrian')
-          .where('id_janji', isEqualTo: widget.idJanji)
-          .get();
-
-      for (var doc in antrianQuery.docs) {
-        await doc.reference.update({'status': 'selesai'});
-      }
+      // Update status janji
+      await FirebaseFirestore.instance
+          .collection('janji')
+          .doc(widget.idJanji)
+          .update({'status': 'selesai', 'update_at': Timestamp.now()});
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Pemeriksaan berhasil disimpan')),
         );
-        setState(() {}); // refresh UI
+        setState(() {});
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e')),
+        SnackBar(content: Text('Gagal menyimpan pemeriksaan: $e')),
       );
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Pemeriksaan Pasien')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: diagnosaController,
-              decoration: const InputDecoration(
-                labelText: 'Diagnosa',
-                border: OutlineInputBorder(),
-              ),
-            ),
+      body: FutureBuilder<DocumentSnapshot>(
+        future: FirebaseFirestore.instance
+            .collection('janji')
+            .doc(widget.idJanji)
+            .get(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            const SizedBox(height: 12),
+          final data = snapshot.data!.data() as Map<String, dynamic>;
 
-            TextField(
-              controller: catatanController,
-              decoration: const InputDecoration(
-                labelText: 'Catatan',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
+          // Simpan nama (sekali saja)
+          namaPasien = data['nama_pasien'] ?? '';
+          namaDokter = data['nama_dokter'] ?? '';
 
-            const SizedBox(height: 24),
-
-            // SIMPAN PEMERIKSAAN
-            ElevatedButton(
-              onPressed: isLoading ? null : simpanPemeriksaan,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Simpan Pemeriksaan'),
-            ),
-
-            const SizedBox(height: 12),
-
-            // BUAT RESEP (MUNCUL SETELAH ADA ID)
-            if (pemeriksaanId != null)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ResepPage(
-                        idPemeriksaan: pemeriksaanId!,
-                      ),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ================= DATA PASIEN =================
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Nama Pasien: $namaPasien',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('No HP: ${data['no_hp_pasien'] ?? '-'}'),
+                        const SizedBox(height: 6),
+                        Text('Keluhan: ${data['keterangan'] ?? '-'}'),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Status: ${data['status']}',
+                          style: TextStyle(
+                            color: data['status'] == 'selesai'
+                                ? Colors.green
+                                : Colors.orange,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
-                child: const Text('Buat Resep'),
-              ),
-          ],
-        ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ================= FORM PEMERIKSAAN =================
+                TextField(
+                  controller: diagnosaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Diagnosa',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: catatanController,
+                  decoration: const InputDecoration(
+                    labelText: 'Catatan Dokter',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+
+                const SizedBox(height: 24),
+
+                ElevatedButton(
+                  onPressed: isLoading ? null : simpanPemeriksaan,
+                  child: isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Simpan Pemeriksaan'),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ================= BUAT RESEP =================
+                ElevatedButton(
+                  onPressed: pemeriksaanId == null
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ResepPage(
+                                idPemeriksaan: pemeriksaanId!,
+                                idPasien: widget.idPasien,
+                                idDokter: widget.idDokter,
+                                namaPasien: namaPasien,
+                                namaDokter: namaDokter,
+                              ),
+                            ),
+                          );
+                        },
+                  child: const Text('Buat Resep'),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

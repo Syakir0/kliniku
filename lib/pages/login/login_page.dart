@@ -37,6 +37,9 @@ class _LoginPageState extends State<LoginPage> {
         case 'pasien':
           Navigator.pushReplacementNamed(context, '/pasien');
           break;
+          case 'apotek':
+          Navigator.pushReplacementNamed(context, '/apotek');
+          break;
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

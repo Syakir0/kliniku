@@ -20,16 +20,21 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  // ===== INPUT PASIEN =====
   final namaController = TextEditingController();
   final noHpController = TextEditingController();
   final keteranganController = TextEditingController();
 
-  // ===== JAM PRAKTEK PERMANEN =====
   final String jamMulai = '08:00';
   final String jamSelesai = '12:00';
 
-  // ================= KONVERSI HARI =================
+  @override
+  void dispose() {
+    namaController.dispose();
+    noHpController.dispose();
+    keteranganController.dispose();
+    super.dispose();
+  }
+
   int hariKeInt(String hari) {
     switch (hari) {
       case 'Senin':
@@ -43,24 +48,29 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
       case 'Jumat':
         return DateTime.friday;
       default:
-        return 0;
+        return -1;
     }
   }
 
-  // ================= PILIH TANGGAL =================
   Future<void> pilihTanggal() async {
     if (selectedHari == null) return;
 
     final targetHari = hariKeInt(selectedHari!);
+    DateTime date = DateTime.now();
+
+    while (date.weekday != targetHari) {
+      date = date.add(const Duration(days: 1));
+    }
 
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-      selectableDayPredicate: (date) => date.weekday == targetHari,
+      initialDate: date,
+      firstDate: date,
+      lastDate: date.add(const Duration(days: 30)),
+      selectableDayPredicate: (d) => d.weekday == targetHari,
     );
 
+    if (!mounted) return;
     if (picked != null) {
       setState(() => selectedTanggal = picked);
     }
@@ -68,6 +78,8 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
 
   // ================= SIMPAN JANJI =================
   Future<void> simpanJanji() async {
+    if (isLoading) return;
+
     if (selectedDokterId == null ||
         selectedHari == null ||
         selectedTanggal == null ||
@@ -90,41 +102,45 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
         selectedTanggal!.day,
       );
 
-      // ===== HITUNG NOMOR ANTRIAN =====
-      final antrianSnapshot = await _firestore
-          .collection('janji')
-          .where('id_dokter', isEqualTo: selectedDokterId)
-          .where('tanggal', isEqualTo: Timestamp.fromDate(tanggalFix))
-          .get();
+      final counterRef = _firestore
+          .collection('antrian_counter')
+          .doc('${selectedDokterId}_${tanggalFix.toIso8601String()}');
 
-      final int nomorAntrian = antrianSnapshot.docs.length + 1;
+      final janjiRef = _firestore.collection('janji').doc();
 
-      // ===== SIMPAN JANJI =====
-      await _firestore.collection('janji').add({
-        'id_pasien': uid,
-        'id_dokter': selectedDokterId,
+      await _firestore.runTransaction((transaction) async {
+        final counterSnap = await transaction.get(counterRef);
 
-        'nama_pasien': namaController.text.trim(),
-        'no_hp_pasien': noHpController.text.trim(),
+        int nomorAntrian = 1;
 
-        'nama_dokter': dokterData!['nama'],
-        'poli': dokterData!['poli'],
-        'spesialis': dokterData!['spesialis'],
+        if (counterSnap.exists) {
+          nomorAntrian = (counterSnap['last'] ?? 0) + 1;
+          transaction.update(counterRef, {'last': nomorAntrian});
+        } else {
+          transaction.set(counterRef, {'last': 1});
+        }
 
-        'hari_praktek': selectedHari,
-        'tanggal': Timestamp.fromDate(tanggalFix),
-
-        // JAM PERMANEN
-        'jam_mulai': jamMulai,
-        'jam_selesai': jamSelesai,
-
-        'keterangan': keteranganController.text.trim(),
-        'status': 'menunggu',
-        'nomer_antrian': nomorAntrian, // INTEGER
-
-        'created_at': Timestamp.now(),
-        'update_at': Timestamp.now(),
+        transaction.set(janjiRef, {
+          'id_pasien': uid,
+          'id_dokter': selectedDokterId,
+          'nama_pasien': namaController.text.trim(),
+          'no_hp_pasien': noHpController.text.trim(),
+          'nama_dokter': dokterData!['nama'],
+          'poli': dokterData!['poli'],
+          'spesialis': dokterData!['spesialis'],
+          'hari_praktek': selectedHari,
+          'tanggal': Timestamp.fromDate(tanggalFix),
+          'jam_mulai': jamMulai,
+          'jam_selesai': jamSelesai,
+          'keterangan': keteranganController.text.trim(),
+          'status': 'menunggu',
+          'nomer_antrian': nomorAntrian,
+          'created_at': Timestamp.now(),
+          'update_at': Timestamp.now(),
+        });
       });
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Janji berhasil dibuat')),
@@ -132,11 +148,14 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
 
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(content: Text('Gagal menyimpan janji: $e')),
       );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -149,24 +168,19 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ===== NAMA PASIEN =====
             TextField(
               controller: namaController,
               decoration: const InputDecoration(labelText: 'Nama Lengkap'),
             ),
-
             const SizedBox(height: 12),
 
-            // ===== NO HP =====
             TextField(
               controller: noHpController,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Nomor HP'),
             ),
-
             const SizedBox(height: 12),
 
-            // ===== PILIH DOKTER =====
             StreamBuilder<QuerySnapshot>(
               stream: _firestore
                   .collection('users')
@@ -179,9 +193,7 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
 
                 return DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Pilih Dokter'),
-                  value: snapshot.data!.docs.any((d) => d.id == selectedDokterId)
-                      ? selectedDokterId
-                      : null,
+                  value: selectedDokterId,
                   items: snapshot.data!.docs.map((doc) {
                     return DropdownMenuItem(
                       value: doc.id,
@@ -204,27 +216,10 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
 
             if (dokterData != null) ...[
               const SizedBox(height: 12),
-
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Poli: ${dokterData!['poli']}'),
-                      Text('Jam Praktek: $jamMulai - $jamSelesai'),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Hari Praktek'),
                 items: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
-                    .map((h) =>
-                        DropdownMenuItem(value: h, child: Text(h)))
+                    .map((h) => DropdownMenuItem(value: h, child: Text(h)))
                     .toList(),
                 onChanged: (v) => setState(() {
                   selectedHari = v;
@@ -234,7 +229,6 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
             ],
 
             const SizedBox(height: 12),
-
             ListTile(
               title: Text(
                 selectedTanggal == null
@@ -246,8 +240,6 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
             ),
 
             const SizedBox(height: 12),
-
-            // ===== KELUHAN =====
             TextField(
               controller: keteranganController,
               maxLines: 3,
@@ -255,11 +247,14 @@ class _BuatJanjiPageState extends State<BuatJanjiPage> {
             ),
 
             const SizedBox(height: 20),
-
             ElevatedButton(
               onPressed: isLoading ? null : simpanJanji,
               child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Text('Simpan Janji'),
             ),
           ],

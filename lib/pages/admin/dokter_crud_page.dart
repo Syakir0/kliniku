@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dokter_detail_page.dart';
 
 class DokterCrudPage extends StatefulWidget {
   const DokterCrudPage({super.key});
@@ -9,120 +10,118 @@ class DokterCrudPage extends StatefulWidget {
 }
 
 class _DokterCrudPageState extends State<DokterCrudPage> {
-  final TextEditingController namaController = TextEditingController();
-  final TextEditingController spesialisController = TextEditingController();
-  final TextEditingController jadwalController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
-  final CollectionReference dokterCollection = FirebaseFirestore.instance
-      .collection('dokter');
+  final namaController = TextEditingController();
+  final emailController = TextEditingController();
+  final noHpController = TextEditingController();
+  final alamatController = TextEditingController();
+  final poliController = TextEditingController();
+  final spesialisController = TextEditingController();
+  final pendidikanController = TextEditingController();
+  final statusKerjaController = TextEditingController();
+  final tempatLahirController = TextEditingController();
 
-  // ================= TAMBAH DOKTER =================
-  Future<void> tambahDokter() async {
-    if (namaController.text.isEmpty ||
-        spesialisController.text.isEmpty ||
-        jadwalController.text.isEmpty) {
-      return;
-    }
+  DateTime? tanggalLahir;
 
-    await dokterCollection.add({
-      'nama': namaController.text,
-      'spesialis': spesialisController.text,
-      'jadwal': jadwalController.text,
-      'aktif': true,
-      'created_at': Timestamp.now(),
-    });
+  final CollectionReference usersRef =
+      FirebaseFirestore.instance.collection('users');
 
-    namaController.clear();
-    spesialisController.clear();
-    jadwalController.clear();
-
-    Navigator.pop(context);
-  }
-
+  // ===================== UPDATE =====================
   Future<void> updateDokter(String id) async {
-    if (namaController.text.isEmpty ||
-        spesialisController.text.isEmpty ||
-        jadwalController.text.isEmpty) {
-      return;
-    }
+    if (!_formKey.currentState!.validate() || tanggalLahir == null) return;
 
-    await dokterCollection.doc(id).update({
+    await usersRef.doc(id).update({
       'nama': namaController.text,
+      'email': emailController.text,
+      'no_hp': noHpController.text,
+      'alamat': alamatController.text,
+      'poli': poliController.text,
       'spesialis': spesialisController.text,
-      'jadwal': jadwalController.text,
+      'pendidikan_terakhir': pendidikanController.text,
+      'status_kerja': statusKerjaController.text,
+      'tempat_lahir': tempatLahirController.text,
+      'tanggal_lahir': Timestamp.fromDate(tanggalLahir!),
       'updated_at': Timestamp.now(),
     });
 
-    namaController.clear();
-    spesialisController.clear();
-    jadwalController.clear();
-
+    clearForm();
     Navigator.pop(context);
   }
 
-  // ================= DIALOG TAMBAH =================
-  void showTambahDokterDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Tambah Dokter'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: namaController,
-              decoration: const InputDecoration(labelText: 'Nama Dokter'),
-            ),
-            TextField(
-              controller: spesialisController,
-              decoration: const InputDecoration(labelText: 'Spesialis'),
-            ),
-            TextField(
-              controller: jadwalController,
-              decoration: const InputDecoration(labelText: 'Jadwal'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(onPressed: tambahDokter, child: const Text('Simpan')),
-        ],
-      ),
-    );
+  void clearForm() {
+    namaController.clear();
+    emailController.clear();
+    noHpController.clear();
+    alamatController.clear();
+    poliController.clear();
+    spesialisController.clear();
+    pendidikanController.clear();
+    statusKerjaController.clear();
+    tempatLahirController.clear();
+    tanggalLahir = null;
   }
 
-  void showEditDokterDialog(String id, Map<String, dynamic> data) {
+  // ===================== FORM EDIT =====================
+  void showEditDialog(String id, Map<String, dynamic> data) {
     namaController.text = data['nama'];
+    emailController.text = data['email'];
+    noHpController.text = data['no_hp'];
+    alamatController.text = data['alamat'];
+    poliController.text = data['poli'];
     spesialisController.text = data['spesialis'];
-    jadwalController.text = data['jadwal'];
+    pendidikanController.text = data['pendidikan_terakhir'];
+    statusKerjaController.text = data['status_kerja'];
+    tempatLahirController.text = data['tempat_lahir'];
+    tanggalLahir = (data['tanggal_lahir'] as Timestamp).toDate();
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Edit Dokter'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: namaController,
-              decoration: const InputDecoration(labelText: 'Nama Dokter'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                buildField(namaController, 'Nama'),
+                buildField(emailController, 'Email'),
+                buildField(noHpController, 'No HP'),
+                buildField(alamatController, 'Alamat'),
+                buildField(poliController, 'Poli'),
+                buildField(spesialisController, 'Spesialis'),
+                buildField(pendidikanController, 'Pendidikan Terakhir'),
+                buildField(statusKerjaController, 'Status Kerja'),
+                buildField(tempatLahirController, 'Tempat Lahir'),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: tanggalLahir ?? DateTime(1995),
+                      firstDate: DateTime(1950),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setState(() => tanggalLahir = picked);
+                    }
+                  },
+                  child: Text(
+                    tanggalLahir == null
+                        ? 'Pilih Tanggal Lahir'
+                        : tanggalLahir!.toString().split(' ')[0],
+                  ),
+                ),
+              ],
             ),
-            TextField(
-              controller: spesialisController,
-              decoration: const InputDecoration(labelText: 'Spesialis'),
-            ),
-            TextField(
-              controller: jadwalController,
-              decoration: const InputDecoration(labelText: 'Jadwal'),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              clearForm();
+              Navigator.pop(context);
+            },
             child: const Text('Batal'),
           ),
           ElevatedButton(
@@ -134,29 +133,33 @@ class _DokterCrudPageState extends State<DokterCrudPage> {
     );
   }
 
-  // ================= HAPUS =================
-  Future<void> hapusDokter(String id) async {
-    await dokterCollection.doc(id).delete();
+  Widget buildField(TextEditingController c, String label) {
+    return TextFormField(
+      controller: c,
+      decoration: InputDecoration(labelText: label),
+      validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
+    );
   }
 
-  // ================= UI =================
+  // ===================== HAPUS =====================
+  Future<void> hapusDokter(String id) async {
+    await usersRef.doc(id).delete();
+  }
+
+  // ===================== UI =====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kelola Dokter')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: showTambahDokterDialog,
-        child: const Icon(Icons.add),
-      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: dokterCollection.orderBy('created_at').snapshots(),
+        stream: usersRef.where('role', isEqualTo: 'dokter').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('Belum ada data dokter'));
+            return const Center(child: Text('Belum ada dokter'));
           }
 
           return ListView(
@@ -166,14 +169,25 @@ class _DokterCrudPageState extends State<DokterCrudPage> {
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DokterDetailPage(data: data),
+                      ),
+                    );
+                  },
                   title: Text(data['nama']),
-                  subtitle: Text('${data['spesialis']} | ${data['jadwal']}'),
+                  subtitle: Text(
+                    '${data['spesialis']} • ${data['poli']}\n${data['email']}',
+                  ),
+                  isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => showEditDokterDialog(doc.id, data),
+                        onPressed: () => showEditDialog(doc.id, data),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),

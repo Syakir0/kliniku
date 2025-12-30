@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'resep_list_page.dart';
 
 class RiwayatPemeriksaanPage extends StatelessWidget {
@@ -9,6 +10,12 @@ class RiwayatPemeriksaanPage extends StatelessWidget {
     super.key,
     required this.idPasien,
   });
+
+  String formatTanggal(Timestamp? timestamp) {
+    if (timestamp == null) return '-';
+    return DateFormat('dd MMM yyyy', 'id_ID')
+        .format(timestamp.toDate());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,32 +36,48 @@ class RiwayatPemeriksaanPage extends StatelessWidget {
             return const Center(child: Text('Belum ada pemeriksaan'));
           }
 
+          final docs = snapshot.data!.docs;
+
           return ListView.builder(
-            itemCount: snapshot.data!.docs.length,
+            itemCount: docs.length,
             itemBuilder: (context, index) {
-              final doc = snapshot.data!.docs[index];
+              final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>;
 
+              final diagnosa = data['diagnosa'] ?? '-';
+              final catatan = data['catatan'] ?? '';
+              final tanggal = data['tanggal'] as Timestamp?;
+              final createdAt = data['created_at'] as Timestamp?;
+
               return Card(
-                margin: const EdgeInsets.all(8),
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: ListTile(
                   title: Text(
-                    data['diagnosa'],
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    diagnosa,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (data['catatan'] != null &&
-                          data['catatan'].toString().isNotEmpty)
-                        Text('Catatan: ${data['catatan']}'),
+                      const SizedBox(height: 4),
+
                       Text(
-                        'Tanggal: ${(data['created_at'] as Timestamp).toDate().toString().split(" ")[0]}',
+                        'Tanggal: ${formatTanggal(tanggal ?? createdAt)}',
                       ),
+
+                      if (catatan.toString().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('Catatan: $catatan'),
+                        ),
                     ],
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.medication),
+                    tooltip: 'Lihat Resep',
                     onPressed: () {
                       Navigator.push(
                         context,
