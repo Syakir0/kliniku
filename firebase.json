@@ -1,0 +1,23 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "kliniku-c3635",
+          "appId": "1:908218658508:android:db9371e7e00690f4179c69",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "kliniku-c3635",
+          "configurations": {
+            "android": "1:908218658508:android:db9371e7e00690f4179c69",
+            "web": "1:908218658508:web:f9304089f57b0a80179c69"
+          }
+        }
+      }
+    }
+  },
+  "functions": []
+}
